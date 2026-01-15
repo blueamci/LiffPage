@@ -114,7 +114,7 @@
     document.getElementById('display-userid').onclick = function() {
         const text = this.innerText;
         navigator.clipboard.writeText(text).then(() => {
-        showAlert("UserID 已複製到剪貼簿");
+        showAlert(`${text}成功`,"UserID 已複製到剪貼簿");
         });
     };
 
