@@ -4,8 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>出勤打卡系統 V2.5</title>
-  
+  <title>出勤打卡系統 V3</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -13,165 +12,153 @@
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
   <style>
-    body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background-color: #f4f7f6; }
-    #map { height: 100%; width: 100%; z-index: 1; }
+    body { font-family: "PingFang TC", sans-serif; background-color: #f4f7f6; }
+    #map { height: 100%; width: 100%; z-index: 1; border-radius: 1.5rem; }
     .user-marker { filter: hue-rotate(150deg) brightness(0.6) saturate(5); }
+    .btn-locked { background-color: #cbd5e1 !important; color: #64748b !important; cursor: not-allowed !important; box-shadow: none !important; }
     .hidden { display: none; }
-    /* 鎖定樣式 */
-    .btn-locked { background-color: #e2e8f0 !important; color: #94a3b8 !important; cursor: not-allowed !important; box-shadow: none !important; }
   </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="p-6 max-w-md mx-auto">
 
-  <div id="custom-alert" class="hidden fixed inset-0 z-[2000] flex items-center justify-center px-6">
+  <div id="alert-box" class="hidden fixed inset-0 z-[2000] flex items-center justify-center px-6">
     <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
-    <div class="bg-white rounded-[2rem] p-8 shadow-2xl relative w-full max-w-sm text-center">
+    <div class="bg-white rounded-[2rem] p-8 shadow-2xl relative w-full text-center">
       <div id="alert-icon" class="text-5xl mb-4"></div>
-      <h3 id="alert-title" class="text-2xl font-black text-slate-800 mb-2"></h3>
-      <p id="alert-msg" class="text-slate-500 mb-8 font-medium"></p>
-      <button onclick="closeAlert()" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-lg">確定</button>
+      <h3 id="alert-title" class="text-2xl font-black mb-2"></h3>
+      <p id="alert-msg" class="text-slate-500 mb-6 font-medium"></p>
+      <button onclick="document.getElementById('alert-box').classList.add('hidden')" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-lg">確定</button>
     </div>
   </div>
 
-  <main class="p-6 max-w-md mx-auto w-full">
-    <header class="flex items-center gap-2 mb-4">
-      <i class="far fa-calendar-check text-2xl text-blue-600"></i>
-      <h1 class="text-xl font-black">出勤打卡系統</h1>
-    </header>
+  <header class="mb-4 flex items-center gap-2">
+    <i class="far fa-calendar-check text-2xl text-blue-600"></i>
+    <h1 class="text-xl font-black">出勤打卡系統 V3</h1>
+  </header>
 
-    <section class="bg-white rounded-3xl py-4 px-7 shadow-sm border border-slate-100 mb-4">
-      <div id="currentDate" class="text-slate-400 font-bold text-sm mb-1">載入中...</div>
-      <div id="currentTime" class="text-6xl font-black text-blue-700 tabular-nums tracking-tighter">00:00:00</div>
-    </section>
+  <section class="bg-white rounded-3xl py-4 px-7 shadow-sm border border-slate-100 mb-4 text-center">
+    <div id="currentDate" class="text-slate-400 font-bold text-sm mb-1">載入中...</div>
+    <div id="currentTime" class="text-6xl font-black text-blue-700 tabular-nums tracking-tighter">00:00:00</div>
+  </section>
 
-    <section class="h-64 bg-white rounded-3xl p-2 shadow-md mb-6 overflow-hidden">
-      <div id="map" class="h-full w-full rounded-2xl"></div>
-    </section>
+  <div class="h-64 bg-white rounded-3xl p-2 shadow-md mb-6 border border-slate-200">
+    <div id="map"></div>
+  </div>
 
-    <div id="auth-zone">
-      <div id="checkin-buttons" class="hidden grid grid-cols-2 gap-4">
-        <button id="btn-in" onclick="handleCheckIn('上班')" class="bg-blue-600 text-white py-6 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center gap-1 transition-all active:scale-95">
-          <i class="fas fa-right-to-bracket text-xl"></i><span>上班打卡</span>
-        </button>
-        <button id="btn-out" onclick="handleCheckIn('下班')" class="bg-slate-800 text-white py-6 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center gap-1 transition-all active:scale-95">
-          <i class="fas fa-right-from-bracket text-xl"></i><span>下班打卡</span>
-        </button>
-      </div>
-    </div>
-  </main>
+  <div id="btn-group" class="hidden grid grid-cols-2 gap-4">
+    <button id="btn-in" onclick="doPunch('上班')" class="bg-blue-600 text-white py-6 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center gap-1 active:scale-95 transition-all">
+      <i class="fas fa-right-to-bracket text-xl"></i><span>上班打卡</span>
+    </button>
+    <button id="btn-out" onclick="doPunch('下班')" class="bg-slate-800 text-white py-6 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center gap-1 active:scale-95 transition-all">
+      <i class="fas fa-right-from-bracket text-xl"></i><span>下班打卡</span>
+    </button>
+  </div>
 
   <script>
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzssTdChCu6PIh9UAflgs2wYtdHPpvIYnaL4vk7nNMnkQ0vj1jnLo--8JpZH1sj-KtR/exec'; 
-    const CONFIG = { target: { lat: 25.04588720519093, lng: 121.52538006035424 } };
-    let state = { userLat: null, userLon: null, currentUser: null, isProcessing: false };
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzssTdChCu6PIh9UAflgs2wYtdHPpvIYnaL4vk7nNMnkQ0vj1jnLo--8JpZH1sj-KtR/exec';
+    let state = { userId: null, lat: null, lng: null, busy: false };
 
-    function updateTime() {
-      const now = new Date();
-      const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-      document.getElementById('currentDate').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${days[now.getDay()]}`;
-      document.getElementById('currentTime').textContent = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    // 格式化時間
+    function getTimeStr(date = new Date()) {
+      return date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
 
-    // [核心] 鎖定按鈕的函式
-    function lockButton(type, time) {
+    // 更新介面時間
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('currentDate').textContent = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+      document.getElementById('currentTime').textContent = getTimeStr(now);
+    }
+
+    // 鎖定按鈕樣式
+    function lockBtn(type, time) {
       const btn = type === '上班' ? document.getElementById('btn-in') : document.getElementById('btn-out');
       btn.disabled = true;
-      btn.classList.add('btn-locked');
-      btn.classList.remove('bg-blue-600', 'bg-slate-800', 'active:scale-95');
+      btn.className = "btn-locked py-6 rounded-3xl font-black text-lg flex flex-col items-center gap-1";
       btn.innerHTML = `<i class="fas fa-check-circle text-xl text-green-500"></i><span>${type} ${time}</span>`;
     }
 
-    // [核心] 向後端檢查當日狀態
-    async function checkTodayStatus() {
-      if (!state.currentUser) return;
+    // 向 GAS 檢查今日打卡狀態
+    async function checkStatus() {
       try {
-        const res = await fetch(`${GAS_URL}?action=checkStatus&userId=${state.currentUser}&t=${Date.now()}`);
+        const res = await fetch(`${GAS_URL}?action=checkStatus&userId=${state.userId}&t=${Date.now()}`);
         const status = await res.json();
-        if (status.checkInTime) lockButton('上班', status.checkInTime);
-        if (status.checkOutTime) lockButton('下班', status.checkOutTime);
-      } catch (e) { console.error("Check Status Failed", e); }
+        if (status.checkInTime) lockBtn('上班', status.checkInTime);
+        if (status.checkOutTime) lockBtn('下班', status.checkOutTime);
+      } catch (e) { console.error("Check Status Error:", e); }
     }
 
-    async function initLiff() {
-      try {
-        const response = await fetch(`${GAS_URL}?action=getConfig`);
-        const config = await response.json();
-        await liff.init({ liffId: config.liffId });
+    // 處理打卡動作
+    async function doPunch(type) {
+      if (state.busy) return;
+      if (!state.lat) return showMsg("定位失敗", "尚未取得 GPS 座標", "fa-exclamation-triangle text-orange-500");
 
-        if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          state.currentUser = profile.userId;
-          if (config.whitelist.includes(state.currentUser)) {
-            document.getElementById('checkin-buttons').classList.remove('hidden');
-            // 頁面開啟立刻檢查
-            await checkTodayStatus(); 
-          }
-        } else { liff.login(); }
-        initApp();
-      } catch (e) { console.error(e); }
-    }
-
-    async function handleCheckIn(type) {
-      if (state.isProcessing) return;
-      if (!state.userLat) return showAlert("定位失敗", "尚未取得 GPS 座標", "fa-exclamation-triangle text-orange-500");
-
-      state.isProcessing = true;
+      state.busy = true;
       const btn = type === '上班' ? document.getElementById('btn-in') : document.getElementById('btn-out');
       const originalHTML = btn.innerHTML;
-      
-      // UI 即時回饋：變更為處理中
-      btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xl"></i><span>傳送中...</span>`;
-      
+      btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xl"></i><span>處理中...</span>`;
+
       const now = new Date();
-      const clientTimeOnly = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
-      const fullTimestamp = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()} ${now.toLocaleTimeString('zh-TW', {hour12:false})}`;
+      const timeStr = getTimeStr(now);
+      const fullTime = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()} ${timeStr}`;
 
       try {
-        const payload = { userId: state.currentUser, type: type, lat: state.userLat, lng: state.userLon, clientTime: fullTimestamp };
-        
         await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ userId: state.userId, type: type, lat: state.lat, lng: state.lng, clientTime: fullTime })
         });
-
-        // 打卡成功：直接在前端鎖定，不等待後端重新查詢
-        lockButton(type, clientTimeOnly);
-        showAlert(`${type}成功`, `時間：${clientTimeOnly}`, "fa-check-circle text-green-600");
-
+        
+        // 打卡成功即鎖定
+        lockBtn(type, timeStr);
+        showMsg(`${type}成功`, `記錄時間：${timeStr}`, "fa-check-circle text-green-600");
       } catch (e) {
-        showAlert("提示", "紀錄已嘗試送出，請稍後檢查。", "fa-info-circle text-blue-500");
-        // 失敗時恢復按鈕
+        showMsg("錯誤", "連線失敗，請檢查網路", "fa-times-circle text-red-500");
         btn.innerHTML = originalHTML;
       } finally {
-        state.isProcessing = false;
-        // 最後再偷偷跟後端同步一次，確保顯示的時間精準
-        setTimeout(checkTodayStatus, 2000);
+        state.busy = false;
       }
     }
 
-    function showAlert(title, msg, iconClass) {
+    function showMsg(title, msg, icon) {
       document.getElementById('alert-title').textContent = title;
-      document.getElementById('alert-msg').innerText = msg;
-      document.getElementById('alert-icon').innerHTML = `<i class="fas ${iconClass}"></i>`;
-      document.getElementById('custom-alert').classList.remove('hidden');
+      document.getElementById('alert-msg').textContent = msg;
+      document.getElementById('alert-icon').innerHTML = `<i class="fas ${icon}"></i>`;
+      document.getElementById('alert-box').classList.remove('hidden');
     }
 
-    function closeAlert() { document.getElementById('custom-alert').classList.add('hidden'); }
+    async function init() {
+      updateClock();
+      setInterval(updateClock, 1000);
 
-    function initApp() {
-      updateTime();
-      setInterval(updateTime, 1000);
+      const configRes = await fetch(`${GAS_URL}?action=getConfig`);
+      const config = await configRes.json();
+      await liff.init({ liffId: config.liffId });
+
+      if (!liff.isLoggedIn()) {
+        liff.login();
+      } else {
+        const profile = await liff.getProfile();
+        state.userId = profile.userId;
+        if (config.whitelist.includes(state.userId)) {
+          document.getElementById('btn-group').classList.remove('hidden');
+          await checkStatus(); // [關鍵] 載入時確認當日是否已打卡
+        } else {
+          showMsg("權限錯誤", "您的帳號不在授權名單內", "fa-user-lock text-red-500");
+        }
+      }
+
       navigator.geolocation.getCurrentPosition((pos) => {
-        state.userLat = pos.coords.latitude; state.userLon = pos.coords.longitude;
-        const map = L.map('map', { zoomControl: false }).setView([state.userLat, state.userLon], 16);
+        state.lat = pos.coords.latitude;
+        state.lng = pos.coords.longitude;
+        const map = L.map('map', { zoomControl: false }).setView([state.lat, state.lng], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        L.marker([CONFIG.target.lat, CONFIG.target.lng]).addTo(map);
-        const u = L.marker([state.userLat, state.userLon]).addTo(map);
+        const u = L.marker([state.lat, state.lng]).addTo(map);
         u._icon.classList.add('user-marker');
       }, null, { enableHighAccuracy: true });
     }
-    window.onload = initLiff;
+
+    window.onload = init;
   </script>
 </body>
 </html>
