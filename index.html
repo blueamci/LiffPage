@@ -17,25 +17,27 @@
     #map { height: 100%; width: 100%; z-index: 1; }
     .user-marker { filter: hue-rotate(150deg) brightness(0.6) saturate(5); }
     .tabular-nums { font-variant-numeric: tabular-nums; }
-    .btn-active:active { transform: scale(0.97); transition: 0.1s; }
+    .btn-active:active:not(:disabled) { transform: scale(0.97); transition: 0.1s; }
     .hidden { display: none; }
     
-    /* 自定義 Modal 動態效果 */
-    #custom-alert { transition: opacity 0.3s ease; }
+    /* 禁用按鈕樣式 */
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+    }
   </style>
 </head>
 <body class="flex flex-col min-h-screen relative">
 
   <div id="custom-alert" class="hidden fixed inset-0 z-[2000] flex items-center justify-center px-6">
     <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
-    <div class="bg-white rounded-[2rem] p-8 shadow-2xl relative w-full max-w-sm border border-white text-center animate-in zoom-in duration-300">
-      <div id="alert-icon" class="text-blue-600 text-5xl mb-4">
-        <i class="fas fa-check-circle"></i>
-      </div>
-      <h3 id="alert-title" class="text-2xl font-black text-slate-800 mb-2">打卡成功</h3>
-      <p id="alert-msg" class="text-slate-500 mb-8 leading-relaxed font-medium">資料已成功同步至試算表</p>
-      <button onclick="closeAlert()" class="btn-active w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-slate-200">
-        我知道了
+    <div class="bg-white rounded-[2rem] p-8 shadow-2xl relative w-full max-w-sm border border-white text-center">
+      <div id="alert-icon" class="text-blue-600 text-5xl mb-4"></div>
+      <h3 id="alert-title" class="text-2xl font-black text-slate-800 mb-2"></h3>
+      <p id="alert-msg" class="text-slate-500 mb-8 leading-relaxed font-medium"></p>
+      <button onclick="closeAlert()" class="btn-active w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-lg">
+        確定
       </button>
     </div>
   </div>
@@ -48,7 +50,7 @@
     </header>
 
     <section class="bg-white rounded-3xl py-4 px-7 shadow-sm border border-slate-100 mb-4">
-      <div id="currentDate" class="text-slate-400 font-bold text-base mb-0.5 tracking-widest lowercase">載入日期中...</div>
+      <div id="currentDate" class="text-slate-400 font-bold text-base mb-0.5 tracking-widest">載入中...</div>
       <div id="currentTime" class="text-6xl font-black text-blue-700 tabular-nums tracking-tighter">00:00:00</div>
     </section>
 
@@ -57,53 +59,56 @@
         <div id="map"></div>
         <div id="map-loader" class="absolute inset-0 z-[1000] flex flex-col items-center justify-center bg-slate-50/90 backdrop-blur-sm">
           <i class="fas fa-location-arrow fa-spin text-blue-600 text-3xl mb-3"></i>
-          <span class="text-xs text-slate-400 font-bold tracking-widest">定位系統運作中</span>
+          <span class="text-xs text-slate-400 font-bold tracking-widest uppercase">GPS 定位中</span>
         </div>
       </div>
     </section>
 
-    <div class="flex items-center justify-between px-4 py-2 mb-6 text-slate-400">
-      <div class="flex items-center gap-2">
-        <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-        <span id="location-info" class="text-[10px] font-bold font-mono italic tracking-tighter uppercase">GPS Searching...</span>
-      </div>
-    </div>
-
     <div id="auth-zone">
-      <button id="btn-login" onclick="liff.login()" class="hidden w-full bg-green-600 text-white py-5 rounded-3xl font-black text-xl shadow-lg flex items-center justify-center gap-3 animate-pulse">
+      <button id="btn-login" onclick="liff.login()" class="hidden w-full bg-green-600 text-white py-5 rounded-3xl font-black text-xl shadow-lg flex items-center justify-center gap-3">
         <i class="fas fa-user-lock"></i> 登入帳號
       </button>
 
       <div id="invalid-user" class="hidden text-center p-8 bg-white rounded-[2rem] border border-red-100 shadow-sm">
         <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
         <h2 class="text-red-500 font-black text-2xl mb-4">帳號無打卡權限</h2>
-        <div class="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200">
+        <div class="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-center">
           <p class="text-slate-400 text-xs font-bold mb-1 uppercase tracking-widest">您的 UserID</p>
-          <code id="display-userid" class="text-base text-slate-700 break-all font-mono font-bold leading-tight"></code>
+          <code id="display-userid" class="text-lg text-slate-700 break-all font-mono font-bold leading-tight"></code>
         </div>
       </div>
 
       <div id="checkin-buttons" class="hidden grid grid-cols-2 gap-4">
-        <button onclick="handleCheckIn('上班')" class="btn-active bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-3">
+        <button id="btn-checkin-in" onclick="handleCheckIn('上班')" class="btn-active bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-3">
           <i class="fas fa-right-to-bracket"></i> 上班打卡
         </button>
-        <button onclick="handleCheckIn('下班')" class="btn-active bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-3">
+        <button id="btn-checkin-out" onclick="handleCheckIn('下班')" class="btn-active bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-3">
           <i class="fas fa-right-from-bracket"></i> 下班打卡
         </button>
       </div>
     </div>
   </main>
 
-  <footer class="text-center py-4 text-slate-300 text-[10px] font-bold tracking-[0.2em] uppercase">
-    Attendance Management &copy; 2026
-  </footer>
-
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzssTdChCu6PIh9UAflgs2wYtdHPpvIYnaL4vk7nNMnkQ0vj1jnLo--8JpZH1sj-KtR/exec'; 
-    const CONFIG = { target: { lat: 25.04588720519093, lng: 121.52538006035424, name: "辦公室" } };
-    let state = { map: null, userLat: null, userLon: null, currentUser: null };
+    const CONFIG = { target: { lat: 25.04588720519093, lng: 121.52538006035424 } };
+    let state = { map: null, userLat: null, userLon: null, currentUser: null, isProcessing: false };
 
-    // --- LIFF & 權限驗證 ---
+    // 格式化客戶端時間 (24小時制: YYYY-MM-DD HH:mm:ss)
+    function getFormattedClientTime() {
+      const now = new Date();
+      const pad = (num) => String(num).padStart(2, '0');
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    }
+
+    // 更新介面時間
+    function updateTime() {
+      const now = new Date();
+      const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+      document.getElementById('currentDate').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${days[now.getDay()]}`;
+      document.getElementById('currentTime').textContent = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
     async function initLiff() {
       try {
         const response = await fetch(`${GAS_URL}?action=getConfig`);
@@ -123,40 +128,63 @@
           }
         }
         initApp();
+      } catch (e) { console.error(e); }
+    }
+
+    async function handleCheckIn(type) {
+      if (state.isProcessing) return; // 鎖定：防止連點
+      if (!state.userLat) return showAlert("定位失敗", "請確保 GPS 已開啟", "fa-exclamation-triangle text-orange-500");
+
+      setButtonsLoading(true); // 鎖定按鍵並切換樣式
+      const clientTime = getFormattedClientTime();
+      
+      try {
+        const payload = {
+          userId: state.currentUser,
+          type: type,
+          lat: state.userLat,
+          lng: state.userLon,
+          clientTime: clientTime // 傳送客戶端格式化時間
+        };
+
+        const response = await fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'no-cors', // 增加傳送速度，不等待 CORS 確認
+          body: JSON.stringify(payload)
+        });
+
+        showAlert(`${type}成功`, `時間：${clientTime}\n打卡紀錄已成功送出。`);
       } catch (e) {
-        showAlert("系統錯誤", "無法讀取配置，請檢查連線", "fa-times-circle text-red-500");
+        showAlert("系統忙碌", "請檢查網路並重試", "fa-times-circle text-red-500");
+      } finally {
+        setButtonsLoading(false); // 解除鎖定
       }
     }
 
-    // --- 訊息框控制 ---
-    function showAlert(title, msg, iconClass = "fa-check-circle") {
+    function setButtonsLoading(isLoading) {
+      state.isProcessing = isLoading;
+      const btnIn = document.getElementById('btn-checkin-in');
+      const btnOut = document.getElementById('btn-checkin-out');
+      btnIn.disabled = isLoading;
+      btnOut.disabled = isLoading;
+      
+      if (isLoading) {
+        btnIn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 處理中...`;
+        btnOut.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 處理中...`;
+      } else {
+        btnIn.innerHTML = `<i class="fas fa-right-to-bracket"></i> 上班打卡`;
+        btnOut.innerHTML = `<i class="fas fa-right-from-bracket"></i> 下班打卡`;
+      }
+    }
+
+    function showAlert(title, msg, iconClass = "fa-check-circle text-blue-600") {
       document.getElementById('alert-title').textContent = title;
-      document.getElementById('alert-msg').textContent = msg;
+      document.getElementById('alert-msg').innerText = msg;
       document.getElementById('alert-icon').innerHTML = `<i class="fas ${iconClass}"></i>`;
       document.getElementById('custom-alert').classList.remove('hidden');
     }
 
-    function closeAlert() {
-      document.getElementById('custom-alert').classList.add('hidden');
-    }
-
-    // --- 基礎邏輯 (完成版v1) ---
-    function updateTime() {
-      const now = new Date();
-      const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-      document.getElementById('currentDate').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${days[now.getDay()]}`;
-      document.getElementById('currentTime').textContent = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    }
-
-    function startLocationWatch() {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        state.userLat = pos.coords.latitude; state.userLon = pos.coords.longitude;
-        document.getElementById('location-info').textContent = `COORDS: ${state.userLat.toFixed(5)}, ${state.userLon.toFixed(5)}`;
-        initMap(state.userLat, state.userLon);
-      }, () => {
-        initMap(CONFIG.target.lat, CONFIG.target.lng);
-      }, { enableHighAccuracy: true });
-    }
+    function closeAlert() { document.getElementById('custom-alert').classList.add('hidden'); }
 
     function initMap(lat, lon) {
       if (state.map) return;
@@ -167,30 +195,15 @@
       if (state.userLat) {
         const u = L.marker([state.userLat, state.userLon]).addTo(state.map);
         u._icon.classList.add('user-marker');
-        L.featureGroup([u, t]).getBounds().pad(0.3);
         state.map.fitBounds(L.featureGroup([u, t]).getBounds().pad(0.3));
       }
     }
 
-    async function handleCheckIn(type) {
-      if (!state.userLat) return showAlert("定位失敗", "請先開啟 GPS 定位", "fa-exclamation-circle text-orange-500");
-      
-      const dist = Math.round(state.map.distance([state.userLat, state.userLon], [CONFIG.target.lat, CONFIG.target.lng]));
-      
-      try {
-        await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify({
-            userId: state.currentUser,
-            type: type,
-            lat: state.userLat,
-            lng: state.userLon
-          })
-        });
-        showAlert(`${type}成功`, `距離打卡點約 ${dist} 公尺，資料已同步。`);
-      } catch (e) {
-        showAlert("傳送失敗", "請檢查網路連線後再試", "fa-times-circle text-red-500");
-      }
+    function startLocationWatch() {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        state.userLat = pos.coords.latitude; state.userLon = pos.coords.longitude;
+        initMap(state.userLat, state.userLon);
+      }, null, { enableHighAccuracy: true });
     }
 
     function initApp() {
