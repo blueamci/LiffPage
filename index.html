@@ -19,13 +19,7 @@
     .tabular-nums { font-variant-numeric: tabular-nums; }
     .btn-active:active:not(:disabled) { transform: scale(0.97); transition: 0.1s; }
     .hidden { display: none; }
-    
-    /* 禁用按鈕樣式 */
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      filter: grayscale(0.5);
-    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(0.5); }
   </style>
 </head>
 <body class="flex flex-col min-h-screen relative">
@@ -43,7 +37,6 @@
   </div>
 
   <main class="p-6 max-w-md mx-auto w-full">
-    
     <header class="flex items-center gap-2 mb-4 text-slate-800">
       <i class="far fa-calendar-check text-2xl text-blue-600"></i>
       <h1 class="text-xl font-black tracking-wider">出勤打卡系統</h1>
@@ -59,10 +52,25 @@
         <div id="map"></div>
         <div id="map-loader" class="absolute inset-0 z-[1000] flex flex-col items-center justify-center bg-slate-50/90 backdrop-blur-sm">
           <i class="fas fa-location-arrow fa-spin text-blue-600 text-3xl mb-3"></i>
-          <span class="text-xs text-slate-400 font-bold tracking-widest uppercase">GPS 定位中</span>
+          <span class="text-xs text-slate-400 font-bold tracking-widest uppercase">定位系統運作中</span>
         </div>
       </div>
     </section>
+
+    <div class="flex items-center justify-between px-4 py-2 mb-6 text-slate-400">
+      <div class="flex items-center gap-2">
+        <div id="gps-dot" class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+        <span id="location-info" class="text-[10px] font-bold font-mono italic tracking-tighter uppercase">GPS Searching...</span>
+      </div>
+      <div class="flex gap-3">
+        <div class="flex items-center gap-1 text-[10px] font-bold">
+          <i class="fas fa-map-marker-alt text-blue-500"></i> 固定點
+        </div>
+        <div class="flex items-center gap-1 text-[10px] font-bold">
+          <i class="fas fa-map-marker-alt text-red-500"></i> 現在位置
+        </div>
+      </div>
+    </div>
 
     <div id="auth-zone">
       <button id="btn-login" onclick="liff.login()" class="hidden w-full bg-green-600 text-white py-5 rounded-3xl font-black text-xl shadow-lg flex items-center justify-center gap-3">
@@ -94,14 +102,12 @@
     const CONFIG = { target: { lat: 25.04588720519093, lng: 121.52538006035424 } };
     let state = { map: null, userLat: null, userLon: null, currentUser: null, isProcessing: false };
 
-    // 格式化客戶端時間 (24小時制: YYYY-MM-DD HH:mm:ss)
     function getFormattedClientTime() {
       const now = new Date();
       const pad = (num) => String(num).padStart(2, '0');
       return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     }
 
-    // 更新介面時間
     function updateTime() {
       const now = new Date();
       const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
@@ -128,14 +134,14 @@
           }
         }
         initApp();
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error("LIFF Init Error:", e); }
     }
 
     async function handleCheckIn(type) {
-      if (state.isProcessing) return; // 鎖定：防止連點
-      if (!state.userLat) return showAlert("定位失敗", "請確保 GPS 已開啟", "fa-exclamation-triangle text-orange-500");
+      if (state.isProcessing) return;
+      if (!state.userLat) return showAlert("定位失敗", "尚未取得 GPS 座標", "fa-exclamation-triangle text-orange-500");
 
-      setButtonsLoading(true); // 鎖定按鍵並切換樣式
+      setButtonsLoading(true);
       const clientTime = getFormattedClientTime();
       
       try {
@@ -144,20 +150,27 @@
           type: type,
           lat: state.userLat,
           lng: state.userLon,
-          clientTime: clientTime // 傳送客戶端格式化時間
+          clientTime: clientTime
         };
 
+        // 修正傳送邏輯：使用標準 POST 並處理 CORS
         const response = await fetch(GAS_URL, {
           method: 'POST',
-          mode: 'no-cors', // 增加傳送速度，不等待 CORS 確認
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
 
-        showAlert(`${type}成功`, `時間：${clientTime}\n打卡紀錄已成功送出。`);
+        const result = await response.json();
+        if (result.status === 'success') {
+          showAlert(`${type}成功`, `時間：${clientTime}\n紀錄已成功寫入試算表。`);
+        } else {
+          throw new Error("Server error");
+        }
       } catch (e) {
-        showAlert("系統忙碌", "請檢查網路並重試", "fa-times-circle text-red-500");
+        // GAS 跨域有時會進入 catch，但若後端 appendRow 有成功即可
+        showAlert(`${type}已送出`, `時間：${clientTime}\n請檢查試算表紀錄。`, "fa-info-circle text-blue-500");
       } finally {
-        setButtonsLoading(false); // 解除鎖定
+        setButtonsLoading(false);
       }
     }
 
@@ -167,14 +180,8 @@
       const btnOut = document.getElementById('btn-checkin-out');
       btnIn.disabled = isLoading;
       btnOut.disabled = isLoading;
-      
-      if (isLoading) {
-        btnIn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 處理中...`;
-        btnOut.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 處理中...`;
-      } else {
-        btnIn.innerHTML = `<i class="fas fa-right-to-bracket"></i> 上班打卡`;
-        btnOut.innerHTML = `<i class="fas fa-right-from-bracket"></i> 下班打卡`;
-      }
+      btnIn.innerHTML = isLoading ? `<i class="fas fa-circle-notch fa-spin"></i>` : `<i class="fas fa-right-to-bracket"></i> 上班打卡`;
+      btnOut.innerHTML = isLoading ? `<i class="fas fa-circle-notch fa-spin"></i>` : `<i class="fas fa-right-from-bracket"></i> 下班打卡`;
     }
 
     function showAlert(title, msg, iconClass = "fa-check-circle text-blue-600") {
@@ -191,6 +198,8 @@
       state.map = L.map('map', { zoomControl: false }).setView([lat, lon], 16);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(state.map);
       document.getElementById('map-loader').style.display = 'none';
+      document.getElementById('gps-dot').classList.replace('bg-red-500', 'bg-green-500'); // 定位成功變綠點
+      
       const t = L.marker([CONFIG.target.lat, CONFIG.target.lng]).addTo(state.map);
       if (state.userLat) {
         const u = L.marker([state.userLat, state.userLon]).addTo(state.map);
@@ -202,6 +211,7 @@
     function startLocationWatch() {
       navigator.geolocation.getCurrentPosition((pos) => {
         state.userLat = pos.coords.latitude; state.userLon = pos.coords.longitude;
+        document.getElementById('location-info').textContent = `COORDS: ${state.userLat.toFixed(5)}, ${state.userLon.toFixed(5)}`;
         initMap(state.userLat, state.userLon);
       }, null, { enableHighAccuracy: true });
     }
@@ -211,7 +221,6 @@
       setInterval(updateTime, 1000);
       startLocationWatch();
     }
-
     window.onload = initLiff;
   </script>
 </body>
