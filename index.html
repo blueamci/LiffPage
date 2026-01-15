@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>出勤打卡系統 - 完成版V2.3</title>
+  <title>出勤打卡系統 - V2.4</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -19,7 +19,6 @@
     .tabular-nums { font-variant-numeric: tabular-nums; }
     .btn-active:active:not(:disabled) { transform: scale(0.97); transition: 0.1s; }
     .hidden { display: none; }
-    /* 鎖定樣式：更明顯的灰色與內凹感 */
     .btn-locked { background-color: #f1f5f9 !important; color: #94a3b8 !important; border: 1px solid #e2e8f0 !important; cursor: not-allowed !important; box-shadow: none !important; }
   </style>
 </head>
@@ -27,10 +26,10 @@
 
   <div id="custom-alert" class="hidden fixed inset-0 z-[2000] flex items-center justify-center px-6">
     <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
-    <div class="bg-white rounded-[2rem] p-8 shadow-2xl relative w-full max-w-sm border border-white text-center">
+    <div class="bg-white rounded-[2rem] p-8 shadow-2xl relative w-full max-w-sm text-center">
       <div id="alert-icon" class="text-5xl mb-4"></div>
       <h3 id="alert-title" class="text-2xl font-black text-slate-800 mb-2"></h3>
-      <p id="alert-msg" class="text-slate-500 mb-8 leading-relaxed font-medium"></p>
+      <p id="alert-msg" class="text-slate-500 mb-8 font-medium"></p>
       <button onclick="closeAlert()" class="btn-active w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-lg">確定</button>
     </div>
   </div>
@@ -59,17 +58,16 @@
 
     <div id="auth-zone">
       <div id="checkin-buttons" class="hidden grid grid-cols-2 gap-4">
-        <button id="btn-checkin-in" onclick="handleCheckIn('上班')" class="btn-active bg-blue-600 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1">
+        <button id="btn-checkin-in" onclick="handleCheckIn('上班')" class="btn-active bg-blue-600 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1 transition-all">
           <i class="fas fa-right-to-bracket text-xl"></i><span>上班打卡</span>
         </button>
-        <button id="btn-checkin-out" onclick="handleCheckIn('下班')" class="btn-active bg-slate-800 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1">
+        <button id="btn-checkin-out" onclick="handleCheckIn('下班')" class="btn-active bg-slate-800 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1 transition-all">
           <i class="fas fa-right-from-bracket text-xl"></i><span>下班打卡</span>
         </button>
       </div>
       <div id="invalid-user" class="hidden text-center p-8 bg-white rounded-[2rem] border border-red-100 shadow-sm">
           <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
           <h2 class="text-red-500 font-black text-xl mb-4">帳號無打卡權限</h2>
-          <code id="display-userid" class="text-xs text-slate-500 break-all font-mono"></code>
       </div>
     </div>
   </main>
@@ -100,17 +98,14 @@
             await checkTodayStatus(); 
           } else {
             document.getElementById('invalid-user').classList.remove('hidden');
-            document.getElementById('display-userid').textContent = state.currentUser;
           }
         } else { liff.login(); }
         initApp();
       } catch (e) { console.error(e); }
     }
 
-    // 核心：查詢並強制鎖定按鈕
     async function checkTodayStatus() {
       try {
-        // 增加一個隨機數防止瀏覽器快取
         const res = await fetch(`${GAS_URL}?action=checkStatus&userId=${state.currentUser}&t=${Date.now()}`);
         const status = await res.json();
         
@@ -121,19 +116,27 @@
           btnIn.disabled = true;
           btnIn.className = "btn-locked py-5 rounded-3xl font-black text-lg flex flex-col items-center justify-center gap-1";
           btnIn.innerHTML = `<i class="fas fa-check-circle text-xl text-green-500"></i><span>上班 ${status.checkInTime}</span>`;
+        } else {
+          btnIn.disabled = false;
+          btnIn.className = "btn-active bg-blue-600 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1 transition-all";
+          btnIn.innerHTML = `<i class="fas fa-right-to-bracket text-xl"></i><span>上班打卡</span>`;
         }
 
         if (status.checkOutTime) {
           btnOut.disabled = true;
           btnOut.className = "btn-locked py-5 rounded-3xl font-black text-lg flex flex-col items-center justify-center gap-1";
           btnOut.innerHTML = `<i class="fas fa-check-circle text-xl text-green-500"></i><span>下班 ${status.checkOutTime}</span>`;
+        } else {
+          btnOut.disabled = false;
+          btnOut.className = "btn-active bg-slate-800 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1 transition-all";
+          btnOut.innerHTML = `<i class="fas fa-right-from-bracket text-xl"></i><span>下班打卡</span>`;
         }
-      } catch (e) { console.error("Update UI failed", e); }
+      } catch (e) { console.error("UI Update Failed", e); }
     }
 
     async function handleCheckIn(type) {
       if (state.isProcessing) return;
-      if (!state.userLat) return showAlert("定位失敗", "尚未取得 GPS 座標", "fa-exclamation-triangle text-orange-500");
+      if (!state.userLat) return showAlert("定位失敗", "尚未取得座標", "fa-exclamation-triangle text-orange-500");
 
       state.isProcessing = true;
       const btn = type === '上班' ? document.getElementById('btn-checkin-in') : document.getElementById('btn-checkin-out');
@@ -151,24 +154,21 @@
           clientTime: `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')} ${new Date().toLocaleTimeString('zh-TW',{hour12:false})}` 
         };
         
-        await fetch(GAS_URL, {
+        const response = await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
 
-        showAlert(`${type}成功`, `打卡紀錄已送出。`, "fa-check-circle text-green-600");
-        
-        // 關鍵：延遲 800ms 再檢查狀態，確保 Google Sheet 已同步完成
-        setTimeout(async () => {
-          await checkTodayStatus();
-          state.isProcessing = false;
-        }, 800);
+        const result = await response.json();
+        showAlert(result.status === 'success' ? `${type}成功` : "系統提示", `打卡紀錄已傳送。`, "fa-check-circle text-green-600");
 
       } catch (e) {
-        showAlert("連線提示", "紀錄已嘗試送出，請稍後查看。", "fa-info-circle text-blue-500");
-        btn.innerHTML = originalHTML;
-        btn.disabled = false;
+        console.error(e);
+        showAlert("紀錄中", "請稍後確認試算表。", "fa-info-circle text-blue-500");
+      } finally {
+        // 無論成功失敗，都強迫重新整理按鈕狀態，並釋放 isProcessing 鎖定
+        await checkTodayStatus();
         state.isProcessing = false;
       }
     }
