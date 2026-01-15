@@ -211,7 +211,7 @@
     function startLocationWatch() {
       navigator.geolocation.getCurrentPosition((pos) => {
         state.userLat = pos.coords.latitude; state.userLon = pos.coords.longitude;
-        document.getElementById('location-info').textContent = `COORDS: ${state.userLat.toFixed(5)}, ${state.userLon.toFixed(5)}`;
+        document.getElementById('location-info').textContent = `座標: ${state.userLat.toFixed(5)}, ${state.userLon.toFixed(5)}`;
         initMap(state.userLat, state.userLon);
       }, null, { enableHighAccuracy: true });
     }
