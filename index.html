@@ -46,6 +46,13 @@
       <div id="currentDate" class="text-slate-400 font-bold text-base mb-1 tracking-widest">載入中...</div>
       <div id="currentTime" class="text-6xl font-black text-blue-700 tabular-nums tracking-tighter">00:00:00</div>
     </section>
+
+    <section id="user-info-zone" class="hidden mb-4 text-center">
+      <div class="flex items-center justify-center gap-2 bg-blue-50 py-2 px-4 rounded-full border border-blue-100 inline-block mx-auto">
+        <i class="fas fa-user-circle text-blue-500"></i>
+        <span id="display-name" class="text-slate-700 font-black tracking-wide">載入中...</span>
+      </div>
+    </section>    
     
     <section class="relative bg-white rounded-3xl p-2 shadow-md border border-slate-200 mb-3">
       <div class="h-64 rounded-[1.5rem] overflow-hidden relative">
@@ -100,8 +107,7 @@
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzssTdChCu6PIh9UAflgs2wYtdHPpvIYnaL4vk7nNMnkQ0vj1jnLo--8JpZH1sj-KtR/exec'; 
     const CONFIG = { target: { lat: 25.04588720519093, lng: 121.52538006035424 } };
-    let state = { map: null, userLat: null, userLon: null, currentUser: null, isProcessing: false };
-
+    let state = { map: null, userLat: null, userLon: null, currentUser: null, displayName: null, isProcessing: false };
     function getFormattedClientTime() {
       const now = new Date();
       const pad = (num) => String(num).padStart(2, '0');
@@ -126,11 +132,17 @@
         } else {
           const profile = await liff.getProfile();
           state.currentUser = profile.userId;
+          state.displayName = profile.displayName; // 取得 LINE 顯示名稱
+
           if (config.whitelist.includes(state.currentUser)) {
             document.getElementById('checkin-buttons').classList.remove('hidden');
+            // 顯示名稱區塊並填入內容
+            document.getElementById('user-info-zone').classList.remove('hidden');
+            document.getElementById('display-name').textContent = `您好，${state.displayName}`;
           } else {
             document.getElementById('invalid-user').classList.remove('hidden');
             document.getElementById('display-userid').textContent = state.currentUser;
+            document.getElementById('user-info-zone').classList.add('hidden'); // 沒在列表則隱藏
           }
         }
         initApp();
@@ -145,8 +157,10 @@
       const clientTime = getFormattedClientTime();
       
       try {
+        // 在 handleCheckIn 的 payload 中加入 displayName
         const payload = {
           userId: state.currentUser,
+          displayName: state.displayName, // 新增此行
           type: type,
           lat: state.userLat,
           lng: state.userLon,
