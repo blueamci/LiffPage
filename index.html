@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>出勤打卡系統 - V2.4</title>
+  <title>出勤打卡系統 V2.5</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -16,13 +16,12 @@
     body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background-color: #f4f7f6; }
     #map { height: 100%; width: 100%; z-index: 1; }
     .user-marker { filter: hue-rotate(150deg) brightness(0.6) saturate(5); }
-    .tabular-nums { font-variant-numeric: tabular-nums; }
-    .btn-active:active:not(:disabled) { transform: scale(0.97); transition: 0.1s; }
     .hidden { display: none; }
-    .btn-locked { background-color: #f1f5f9 !important; color: #94a3b8 !important; border: 1px solid #e2e8f0 !important; cursor: not-allowed !important; box-shadow: none !important; }
+    /* 鎖定樣式 */
+    .btn-locked { background-color: #e2e8f0 !important; color: #94a3b8 !important; cursor: not-allowed !important; box-shadow: none !important; }
   </style>
 </head>
-<body class="flex flex-col min-h-screen relative">
+<body class="flex flex-col min-h-screen">
 
   <div id="custom-alert" class="hidden fixed inset-0 z-[2000] flex items-center justify-center px-6">
     <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
@@ -30,44 +29,33 @@
       <div id="alert-icon" class="text-5xl mb-4"></div>
       <h3 id="alert-title" class="text-2xl font-black text-slate-800 mb-2"></h3>
       <p id="alert-msg" class="text-slate-500 mb-8 font-medium"></p>
-      <button onclick="closeAlert()" class="btn-active w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-lg">確定</button>
+      <button onclick="closeAlert()" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-lg">確定</button>
     </div>
   </div>
 
   <main class="p-6 max-w-md mx-auto w-full">
-    <header class="flex items-center gap-2 mb-4 text-slate-800">
+    <header class="flex items-center gap-2 mb-4">
       <i class="far fa-calendar-check text-2xl text-blue-600"></i>
-      <h1 class="text-xl font-black tracking-wider">出勤打卡系統</h1>
+      <h1 class="text-xl font-black">出勤打卡系統</h1>
     </header>
 
     <section class="bg-white rounded-3xl py-4 px-7 shadow-sm border border-slate-100 mb-4">
-      <div id="currentDate" class="text-slate-400 font-bold text-base mb-0.5 tracking-widest lowercase">載入中...</div>
+      <div id="currentDate" class="text-slate-400 font-bold text-sm mb-1">載入中...</div>
       <div id="currentTime" class="text-6xl font-black text-blue-700 tabular-nums tracking-tighter">00:00:00</div>
     </section>
 
-    <section class="relative bg-white rounded-3xl p-2 shadow-md border border-slate-200 mb-3">
-      <div class="h-64 rounded-[1.5rem] overflow-hidden relative"><div id="map"></div></div>
+    <section class="h-64 bg-white rounded-3xl p-2 shadow-md mb-6 overflow-hidden">
+      <div id="map" class="h-full w-full rounded-2xl"></div>
     </section>
-
-    <div class="flex items-center justify-between px-4 py-2 mb-6 text-slate-400">
-      <div class="flex items-center gap-2">
-        <div id="gps-dot" class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-        <span id="location-info" class="text-[10px] font-bold font-mono tracking-tighter uppercase">GPS Searching...</span>
-      </div>
-    </div>
 
     <div id="auth-zone">
       <div id="checkin-buttons" class="hidden grid grid-cols-2 gap-4">
-        <button id="btn-checkin-in" onclick="handleCheckIn('上班')" class="btn-active bg-blue-600 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1 transition-all">
+        <button id="btn-in" onclick="handleCheckIn('上班')" class="bg-blue-600 text-white py-6 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center gap-1 transition-all active:scale-95">
           <i class="fas fa-right-to-bracket text-xl"></i><span>上班打卡</span>
         </button>
-        <button id="btn-checkin-out" onclick="handleCheckIn('下班')" class="btn-active bg-slate-800 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1 transition-all">
+        <button id="btn-out" onclick="handleCheckIn('下班')" class="bg-slate-800 text-white py-6 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center gap-1 transition-all active:scale-95">
           <i class="fas fa-right-from-bracket text-xl"></i><span>下班打卡</span>
         </button>
-      </div>
-      <div id="invalid-user" class="hidden text-center p-8 bg-white rounded-[2rem] border border-red-100 shadow-sm">
-          <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
-          <h2 class="text-red-500 font-black text-xl mb-4">帳號無打卡權限</h2>
       </div>
     </div>
   </main>
@@ -75,13 +63,33 @@
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzssTdChCu6PIh9UAflgs2wYtdHPpvIYnaL4vk7nNMnkQ0vj1jnLo--8JpZH1sj-KtR/exec'; 
     const CONFIG = { target: { lat: 25.04588720519093, lng: 121.52538006035424 } };
-    let state = { map: null, userLat: null, userLon: null, currentUser: null, isProcessing: false };
+    let state = { userLat: null, userLon: null, currentUser: null, isProcessing: false };
 
     function updateTime() {
       const now = new Date();
       const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
       document.getElementById('currentDate').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${days[now.getDay()]}`;
       document.getElementById('currentTime').textContent = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    // [核心] 鎖定按鈕的函式
+    function lockButton(type, time) {
+      const btn = type === '上班' ? document.getElementById('btn-in') : document.getElementById('btn-out');
+      btn.disabled = true;
+      btn.classList.add('btn-locked');
+      btn.classList.remove('bg-blue-600', 'bg-slate-800', 'active:scale-95');
+      btn.innerHTML = `<i class="fas fa-check-circle text-xl text-green-500"></i><span>${type} ${time}</span>`;
+    }
+
+    // [核心] 向後端檢查當日狀態
+    async function checkTodayStatus() {
+      if (!state.currentUser) return;
+      try {
+        const res = await fetch(`${GAS_URL}?action=checkStatus&userId=${state.currentUser}&t=${Date.now()}`);
+        const status = await res.json();
+        if (status.checkInTime) lockButton('上班', status.checkInTime);
+        if (status.checkOutTime) lockButton('下班', status.checkOutTime);
+      } catch (e) { console.error("Check Status Failed", e); }
     }
 
     async function initLiff() {
@@ -95,81 +103,50 @@
           state.currentUser = profile.userId;
           if (config.whitelist.includes(state.currentUser)) {
             document.getElementById('checkin-buttons').classList.remove('hidden');
+            // 頁面開啟立刻檢查
             await checkTodayStatus(); 
-          } else {
-            document.getElementById('invalid-user').classList.remove('hidden');
           }
         } else { liff.login(); }
         initApp();
       } catch (e) { console.error(e); }
     }
 
-    async function checkTodayStatus() {
-      try {
-        const res = await fetch(`${GAS_URL}?action=checkStatus&userId=${state.currentUser}&t=${Date.now()}`);
-        const status = await res.json();
-        
-        const btnIn = document.getElementById('btn-checkin-in');
-        const btnOut = document.getElementById('btn-checkin-out');
-
-        if (status.checkInTime) {
-          btnIn.disabled = true;
-          btnIn.className = "btn-locked py-5 rounded-3xl font-black text-lg flex flex-col items-center justify-center gap-1";
-          btnIn.innerHTML = `<i class="fas fa-check-circle text-xl text-green-500"></i><span>上班 ${status.checkInTime}</span>`;
-        } else {
-          btnIn.disabled = false;
-          btnIn.className = "btn-active bg-blue-600 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1 transition-all";
-          btnIn.innerHTML = `<i class="fas fa-right-to-bracket text-xl"></i><span>上班打卡</span>`;
-        }
-
-        if (status.checkOutTime) {
-          btnOut.disabled = true;
-          btnOut.className = "btn-locked py-5 rounded-3xl font-black text-lg flex flex-col items-center justify-center gap-1";
-          btnOut.innerHTML = `<i class="fas fa-check-circle text-xl text-green-500"></i><span>下班 ${status.checkOutTime}</span>`;
-        } else {
-          btnOut.disabled = false;
-          btnOut.className = "btn-active bg-slate-800 text-white py-5 rounded-3xl font-black text-lg shadow-lg flex flex-col items-center justify-center gap-1 transition-all";
-          btnOut.innerHTML = `<i class="fas fa-right-from-bracket text-xl"></i><span>下班打卡</span>`;
-        }
-      } catch (e) { console.error("UI Update Failed", e); }
-    }
-
     async function handleCheckIn(type) {
       if (state.isProcessing) return;
-      if (!state.userLat) return showAlert("定位失敗", "尚未取得座標", "fa-exclamation-triangle text-orange-500");
+      if (!state.userLat) return showAlert("定位失敗", "尚未取得 GPS 座標", "fa-exclamation-triangle text-orange-500");
 
       state.isProcessing = true;
-      const btn = type === '上班' ? document.getElementById('btn-checkin-in') : document.getElementById('btn-checkin-out');
+      const btn = type === '上班' ? document.getElementById('btn-in') : document.getElementById('btn-out');
       const originalHTML = btn.innerHTML;
       
-      btn.disabled = true;
-      btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xl"></i><span>處理中...</span>`;
+      // UI 即時回饋：變更為處理中
+      btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xl"></i><span>傳送中...</span>`;
       
+      const now = new Date();
+      const clientTimeOnly = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+      const fullTimestamp = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()} ${now.toLocaleTimeString('zh-TW', {hour12:false})}`;
+
       try {
-        const payload = { 
-          userId: state.currentUser, 
-          type: type, 
-          lat: state.userLat, 
-          lng: state.userLon, 
-          clientTime: `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')} ${new Date().toLocaleTimeString('zh-TW',{hour12:false})}` 
-        };
+        const payload = { userId: state.currentUser, type: type, lat: state.userLat, lng: state.userLon, clientTime: fullTimestamp };
         
-        const response = await fetch(GAS_URL, {
+        await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
 
-        const result = await response.json();
-        showAlert(result.status === 'success' ? `${type}成功` : "系統提示", `打卡紀錄已傳送。`, "fa-check-circle text-green-600");
+        // 打卡成功：直接在前端鎖定，不等待後端重新查詢
+        lockButton(type, clientTimeOnly);
+        showAlert(`${type}成功`, `時間：${clientTimeOnly}`, "fa-check-circle text-green-600");
 
       } catch (e) {
-        console.error(e);
-        showAlert("紀錄中", "請稍後確認試算表。", "fa-info-circle text-blue-500");
+        showAlert("提示", "紀錄已嘗試送出，請稍後檢查。", "fa-info-circle text-blue-500");
+        // 失敗時恢復按鈕
+        btn.innerHTML = originalHTML;
       } finally {
-        // 無論成功失敗，都強迫重新整理按鈕狀態，並釋放 isProcessing 鎖定
-        await checkTodayStatus();
         state.isProcessing = false;
+        // 最後再偷偷跟後端同步一次，確保顯示的時間精準
+        setTimeout(checkTodayStatus, 2000);
       }
     }
 
@@ -182,28 +159,18 @@
 
     function closeAlert() { document.getElementById('custom-alert').classList.add('hidden'); }
 
-    function initMap(lat, lon) {
-      if (state.map) return;
-      state.map = L.map('map', { zoomControl: false }).setView([lat, lon], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(state.map);
-      document.getElementById('gps-dot').classList.replace('bg-red-500', 'bg-green-500');
-      const t = L.marker([CONFIG.target.lat, CONFIG.target.lng]).addTo(state.map);
-      if (state.userLat) {
-        const u = L.marker([state.userLat, state.userLon]).addTo(state.map);
-        u._icon.classList.add('user-marker');
-        state.map.fitBounds(L.featureGroup([u, t]).getBounds().pad(0.3));
-      }
-    }
-
-    function startLocationWatch() {
+    function initApp() {
+      updateTime();
+      setInterval(updateTime, 1000);
       navigator.geolocation.getCurrentPosition((pos) => {
         state.userLat = pos.coords.latitude; state.userLon = pos.coords.longitude;
-        document.getElementById('location-info').textContent = `COORDS: ${state.userLat.toFixed(5)}, ${state.userLon.toFixed(5)}`;
-        initMap(state.userLat, state.userLon);
+        const map = L.map('map', { zoomControl: false }).setView([state.userLat, state.userLon], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        L.marker([CONFIG.target.lat, CONFIG.target.lng]).addTo(map);
+        const u = L.marker([state.userLat, state.userLon]).addTo(map);
+        u._icon.classList.add('user-marker');
       }, null, { enableHighAccuracy: true });
     }
-
-    function initApp() { updateTime(); setInterval(updateTime, 1000); startLocationWatch(); }
     window.onload = initLiff;
   </script>
 </body>
