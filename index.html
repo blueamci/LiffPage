@@ -110,6 +110,15 @@
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzssTdChCu6PIh9UAflgs2wYtdHPpvIYnaL4vk7nNMnkQ0vj1jnLo--8JpZH1sj-KtR/exec'; 
     const CONFIG = { target: { lat: 25.04588720519093, lng: 121.52538006035424 } };
     let state = { map: null, userLat: null, userLon: null, currentUser: null, displayName: null, isProcessing: false };
+
+    document.getElementById('display-userid').onclick = function() {
+        const text = this.innerText;
+        navigator.clipboard.writeText(text).then(() => {
+        alert("UserID 已複製到剪貼簿");
+        });
+    };
+
+    
     function getFormattedClientTime() {
       const now = new Date();
       const pad = (num) => String(num).padStart(2, '0');
