@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>出勤打卡系統</title>
+  <title>出勤打卡系統 - 完成版V2.1</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -19,7 +19,8 @@
     .tabular-nums { font-variant-numeric: tabular-nums; }
     .btn-active:active:not(:disabled) { transform: scale(0.97); transition: 0.1s; }
     .hidden { display: none; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(0.5); }
+    /* 禁用按鈕樣式：反灰 */
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
   </style>
 </head>
 <body class="flex flex-col min-h-screen relative">
@@ -88,26 +89,32 @@
 
       <div id="checkin-buttons" class="hidden grid grid-cols-2 gap-4">
         <button id="btn-checkin-in" onclick="handleCheckIn('上班')" class="btn-active bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-3">
-          <i class="fas fa-right-to-bracket"></i> 上班打卡
+          <i class="fas fa-right-to-bracket"></i> <span>上班打卡</span>
         </button>
         <button id="btn-checkin-out" onclick="handleCheckIn('下班')" class="btn-active bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-3">
-          <i class="fas fa-right-from-bracket"></i> 下班打卡
+          <i class="fas fa-right-from-bracket"></i> <span>下班打卡</span>
         </button>
       </div>
     </div>
   </main>
+
+  <footer class="text-center py-4 text-slate-300 text-[10px] font-bold tracking-[0.2em] uppercase">
+    Attendance Management &copy; 2026
+  </footer>
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzssTdChCu6PIh9UAflgs2wYtdHPpvIYnaL4vk7nNMnkQ0vj1jnLo--8JpZH1sj-KtR/exec'; 
     const CONFIG = { target: { lat: 25.04588720519093, lng: 121.52538006035424 } };
     let state = { map: null, userLat: null, userLon: null, currentUser: null, isProcessing: false };
 
+    // 格式化客戶端時間 (24小時制)
     function getFormattedClientTime() {
       const now = new Date();
       const pad = (num) => String(num).padStart(2, '0');
       return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     }
 
+    // 介面時間更新
     function updateTime() {
       const now = new Date();
       const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
@@ -115,6 +122,7 @@
       document.getElementById('currentTime').textContent = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
 
+    // 初始化 LIFF 與 權限
     async function initLiff() {
       try {
         const response = await fetch(`${GAS_URL}?action=getConfig`);
@@ -128,6 +136,7 @@
           state.currentUser = profile.userId;
           if (config.whitelist.includes(state.currentUser)) {
             document.getElementById('checkin-buttons').classList.remove('hidden');
+            checkTodayStatus(); // 檢查今日打卡狀態
           } else {
             document.getElementById('invalid-user').classList.remove('hidden');
             document.getElementById('display-userid').textContent = state.currentUser;
@@ -137,6 +146,30 @@
       } catch (e) { console.error("LIFF Init Error:", e); }
     }
 
+    // [核心功能] 檢查今日狀態
+    async function checkTodayStatus() {
+      try {
+        const res = await fetch(`${GAS_URL}?action=checkStatus&userId=${state.currentUser}`);
+        const status = await res.json();
+        
+        const btnIn = document.getElementById('btn-checkin-in');
+        const btnOut = document.getElementById('btn-checkin-out');
+
+        if (status.checkInTime) {
+          btnIn.disabled = true;
+          btnIn.classList.replace('bg-blue-600', 'bg-slate-300');
+          btnIn.querySelector('span').textContent = `上班 ${status.checkInTime}`;
+        }
+
+        if (status.checkOutTime) {
+          btnOut.disabled = true;
+          btnOut.classList.replace('bg-slate-800', 'bg-slate-300');
+          btnOut.querySelector('span').textContent = `下班 ${status.checkOutTime}`;
+        }
+      } catch (e) { console.error("Status check failed", e); }
+    }
+
+    // 處理打卡動作
     async function handleCheckIn(type) {
       if (state.isProcessing) return;
       if (!state.userLat) return showAlert("定位失敗", "尚未取得 GPS 座標", "fa-exclamation-triangle text-orange-500");
@@ -153,37 +186,41 @@
           clientTime: clientTime
         };
 
-        // 修正傳送邏輯：使用標準 POST 並處理 CORS
         const response = await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
 
-        const result = await response.json();
-        if (result.status === 'success') {
-          showAlert(`${type}成功`, `時間：${clientTime}\n紀錄已成功寫入試算表。`);
-        } else {
-          throw new Error("Server error");
-        }
+        showAlert(`${type}成功`, `時間：${clientTime}`);
+        checkTodayStatus(); // 打卡完立即更新狀態
       } catch (e) {
-        // GAS 跨域有時會進入 catch，但若後端 appendRow 有成功即可
-        showAlert(`${type}已送出`, `時間：${clientTime}\n請檢查試算表紀錄。`, "fa-info-circle text-blue-500");
+        showAlert(`${type}已送出`, `時間：${clientTime}\n請確認試算表紀錄。`, "fa-info-circle text-blue-500");
+        checkTodayStatus();
       } finally {
         setButtonsLoading(false);
       }
     }
 
+    // 按鈕讀取狀態控制
     function setButtonsLoading(isLoading) {
       state.isProcessing = isLoading;
       const btnIn = document.getElementById('btn-checkin-in');
       const btnOut = document.getElementById('btn-checkin-out');
-      btnIn.disabled = isLoading;
-      btnOut.disabled = isLoading;
-      btnIn.innerHTML = isLoading ? `<i class="fas fa-circle-notch fa-spin"></i>` : `<i class="fas fa-right-to-bracket"></i> 上班打卡`;
-      btnOut.innerHTML = isLoading ? `<i class="fas fa-circle-notch fa-spin"></i>` : `<i class="fas fa-right-from-bracket"></i> 下班打卡`;
+      if (!btnIn.disabled) btnIn.disabled = isLoading;
+      if (!btnOut.disabled) btnOut.disabled = isLoading;
+      
+      if (isLoading) {
+        if (!btnIn.disabled || state.isProcessing) btnIn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i>`;
+        if (!btnOut.disabled || state.isProcessing) btnOut.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i>`;
+      } else {
+        // 讀取完畢會由 checkTodayStatus 重新填入文字，這裡僅做重置
+        if (!btnIn.disabled) btnIn.innerHTML = `<i class="fas fa-right-to-bracket"></i> <span>上班打卡</span>`;
+        if (!btnOut.disabled) btnOut.innerHTML = `<i class="fas fa-right-from-bracket"></i> <span>下班打卡</span>`;
+      }
     }
 
+    // 自定義彈窗
     function showAlert(title, msg, iconClass = "fa-check-circle text-blue-600") {
       document.getElementById('alert-title').textContent = title;
       document.getElementById('alert-msg').innerText = msg;
@@ -193,12 +230,13 @@
 
     function closeAlert() { document.getElementById('custom-alert').classList.add('hidden'); }
 
+    // 地圖與定位
     function initMap(lat, lon) {
       if (state.map) return;
       state.map = L.map('map', { zoomControl: false }).setView([lat, lon], 16);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(state.map);
       document.getElementById('map-loader').style.display = 'none';
-      document.getElementById('gps-dot').classList.replace('bg-red-500', 'bg-green-500'); // 定位成功變綠點
+      document.getElementById('gps-dot').classList.replace('bg-red-500', 'bg-green-500');
       
       const t = L.marker([CONFIG.target.lat, CONFIG.target.lng]).addTo(state.map);
       if (state.userLat) {
