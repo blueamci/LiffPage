@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>出勤打卡系統 - 完成版v1</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <style>
+    body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background-color: #f4f7f6; }
+    #map { height: 100%; width: 100%; z-index: 1; }
+    .user-marker { filter: hue-rotate(150deg) brightness(0.6) saturate(5); }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .btn-active:active { transform: scale(0.97); transition: 0.1s; }
+    /* 隱藏未授權區塊 */
+    .hidden { display: none; }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+  <main class="p-6 max-w-md mx-auto w-full">
+    
+    <header class="flex items-center gap-2 mb-4 text-slate-800">
+      <i class="far fa-calendar-check text-2xl text-blue-600"></i>
+      <h1 class="text-xl font-black tracking-wider">出勤打卡系統</h1>
+    </header>
+
+    <section class="bg-white rounded-3xl py-4 px-7 shadow-sm border border-slate-100 mb-4">
+      <div id="currentDate" class="text-slate-400 font-bold text-base mb-0.5 tracking-widest">載入中...</div>
+      <div id="currentTime" class="text-6xl font-black text-blue-700 tabular-nums tracking-tighter">00:00:00</div>
+    </section>
+
+    <section class="relative bg-white rounded-3xl p-2 shadow-md border border-slate-200 mb-3">
+      <div class="h-64 rounded-[1.5rem] overflow-hidden relative">
+        <div id="map"></div>
+        <div id="map-loader" class="absolute inset-0 z-[1000] flex flex-col items-center justify-center bg-slate-50/90 backdrop-blur-sm">
+          <i class="fas fa-location-arrow fa-spin text-blue-600 text-3xl mb-3"></i>
+          <span class="text-xs text-slate-400 font-bold tracking-widest uppercase">定位系統運作中</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="flex items-center justify-between px-4 py-2 mb-6">
+      <div id="location-info" class="text-[10px] font-bold text-slate-400 font-mono italic">GPS SEARCHING...</div>
+    </div>
+
+    <div id="auth-zone">
+      <button id="btn-login" onclick="liff.login()" class="hidden w-full bg-green-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg flex items-center justify-center gap-3">
+        <i class="fas fa-user-lock"></i> 登入帳號
+      </button>
+
+      <div id="invalid-user" class="hidden text-center p-4 bg-red-50 rounded-2xl border border-red-100">
+        <p class="text-red-500 font-bold mb-2 text-sm">此帳號無打卡權限</p>
+        <code id="display-userid" class="text-xs text-slate-400 break-all"></code>
+      </div>
+
+      <div id="checkin-buttons" class="hidden grid grid-cols-2 gap-4">
+        <button onclick="handleCheckIn('上班')" class="btn-active bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-3">
+          <i class="fas fa-right-to-bracket"></i> 上班打卡
+        </button>
+        <button onclick="handleCheckIn('下班')" class="btn-active bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-3">
+          <i class="fas fa-right-from-bracket"></i> 下班打卡
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    const GAS_URL = '您的GAS部署網址'; 
+    let currentUser = null;
+    let state = { map: null, userLat: null, userLon: null };
+
+    async function initLiff() {
+      // 從 GAS 獲取 LIFF ID 與白名單
+      const response = await fetch(`${GAS_URL}?action=getConfig`);
+      const config = await response.json();
+
+      await liff.init({ liffId: config.liffId });
+
+      if (!liff.isLoggedIn()) {
+        document.getElementById('btn-login').classList.remove('hidden');
+      } else {
+        const profile = await liff.getProfile();
+        currentUser = profile.userId;
+        
+        // 判斷是否在白名單
+        if (config.whitelist.includes(currentUser)) {
+          document.getElementById('checkin-buttons').classList.remove('hidden');
+        } else {
+          document.getElementById('invalid-user').classList.remove('hidden');
+          document.getElementById('display-userid').textContent = currentUser;
+        }
+      }
+      initApp();
+    }
+
+    function initApp() {
+      updateTime();
+      setInterval(updateTime, 1000);
+      startLocationWatch();
+    }
+
+    // (其餘地圖、時間邏輯與完成版v1相同...)
+    function updateTime() {
+      const now = new Date();
+      const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+      document.getElementById('currentDate').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${days[now.getDay()]}`;
+      document.getElementById('currentTime').textContent = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function startLocationWatch() {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        state.userLat = pos.coords.latitude; state.userLon = pos.coords.longitude;
+        document.getElementById('location-info').textContent = `${state.userLat.toFixed(5)}, ${state.userLon.toFixed(5)}`;
+        initMap(state.userLat, state.userLon);
+      });
+    }
+
+    function initMap(lat, lon) {
+      if (state.map) return;
+      state.map = L.map('map', { zoomControl: false }).setView([lat, lon], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(state.map);
+      document.getElementById('map-loader').style.display = 'none';
+      L.marker([lat, lon]).addTo(state.map)._icon.classList.add('user-marker');
+    }
+
+    async function handleCheckIn(type) {
+      if (!state.userLat) return alert("定位中...");
+      
+      // 傳送資料到 GAS
+      await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: currentUser,
+          type: type,
+          lat: state.userLat,
+          lng: state.userLon
+        })
+      });
+      alert(`【${type}成功】資料已同步至試算表`);
+    }
+
+    window.onload = initLiff;
+  </script>
+</body>
+</html>
