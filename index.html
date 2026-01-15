@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>出勤打卡系統 V3</title>
+  <title>出勤打卡系統 V3.1</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -33,7 +33,7 @@
 
   <header class="mb-4 flex items-center gap-2">
     <i class="far fa-calendar-check text-2xl text-blue-600"></i>
-    <h1 class="text-xl font-black">出勤打卡系統 V3</h1>
+    <h1 class="text-xl font-black">出勤打卡系統 V3.1</h1>
   </header>
 
   <section class="bg-white rounded-3xl py-4 px-7 shadow-sm border border-slate-100 mb-4 text-center">
@@ -41,8 +41,19 @@
     <div id="currentTime" class="text-6xl font-black text-blue-700 tabular-nums tracking-tighter">00:00:00</div>
   </section>
 
-  <div class="h-64 bg-white rounded-3xl p-2 shadow-md mb-6 border border-slate-200">
+  <div class="h-64 bg-white rounded-3xl p-2 shadow-md mb-2 border border-slate-200">
     <div id="map"></div>
+  </div>
+
+  <div class="flex items-center justify-between px-4 py-2 mb-6 text-slate-400">
+    <div class="flex items-center gap-2">
+      <div id="gps-dot" class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+      <span id="location-info" class="text-[10px] font-bold font-mono tracking-tighter uppercase">GPS Searching...</span>
+    </div>
+    <div class="flex gap-3 text-[10px] font-bold">
+      <div class="flex items-center gap-1"><i class="fas fa-map-marker-alt text-blue-500"></i> 固定點</div>
+      <div class="flex items-center gap-1"><i class="fas fa-map-marker-alt text-red-500"></i> 現在位置</div>
+    </div>
   </div>
 
   <div id="btn-group" class="hidden grid grid-cols-2 gap-4">
@@ -58,37 +69,36 @@
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzssTdChCu6PIh9UAflgs2wYtdHPpvIYnaL4vk7nNMnkQ0vj1jnLo--8JpZH1sj-KtR/exec';
     let state = { userId: null, lat: null, lng: null, busy: false };
 
-    // 格式化時間
     function getTimeStr(date = new Date()) {
       return date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
 
-    // 更新介面時間
     function updateClock() {
       const now = new Date();
       document.getElementById('currentDate').textContent = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
       document.getElementById('currentTime').textContent = getTimeStr(now);
     }
 
-    // 鎖定按鈕樣式
     function lockBtn(type, time) {
       const btn = type === '上班' ? document.getElementById('btn-in') : document.getElementById('btn-out');
+      if (!btn) return;
       btn.disabled = true;
-      btn.className = "btn-locked py-6 rounded-3xl font-black text-lg flex flex-col items-center gap-1";
+      btn.className = "btn-locked py-6 rounded-3xl font-black text-lg flex flex-col items-center gap-1 shadow-none";
       btn.innerHTML = `<i class="fas fa-check-circle text-xl text-green-500"></i><span>${type} ${time}</span>`;
     }
 
-    // 向 GAS 檢查今日打卡狀態
+    // [核心修正] 確保初始化能正確抓到狀態
     async function checkStatus() {
+      if (!state.userId) return;
       try {
-        const res = await fetch(`${GAS_URL}?action=checkStatus&userId=${state.userId}&t=${Date.now()}`);
+        const res = await fetch(`${GAS_URL}?action=checkStatus&userId=${encodeURIComponent(state.userId)}&t=${Date.now()}`);
         const status = await res.json();
+        // 如果後端有時間資料，執行鎖定
         if (status.checkInTime) lockBtn('上班', status.checkInTime);
         if (status.checkOutTime) lockBtn('下班', status.checkOutTime);
       } catch (e) { console.error("Check Status Error:", e); }
     }
 
-    // 處理打卡動作
     async function doPunch(type) {
       if (state.busy) return;
       if (!state.lat) return showMsg("定位失敗", "尚未取得 GPS 座標", "fa-exclamation-triangle text-orange-500");
@@ -103,13 +113,12 @@
       const fullTime = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()} ${timeStr}`;
 
       try {
-        await fetch(GAS_URL, {
+        const res = await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ userId: state.userId, type: type, lat: state.lat, lng: state.lng, clientTime: fullTime })
         });
         
-        // 打卡成功即鎖定
         lockBtn(type, timeStr);
         showMsg(`${type}成功`, `記錄時間：${timeStr}`, "fa-check-circle text-green-600");
       } catch (e) {
@@ -131,31 +140,39 @@
       updateClock();
       setInterval(updateClock, 1000);
 
-      const configRes = await fetch(`${GAS_URL}?action=getConfig`);
-      const config = await configRes.json();
-      await liff.init({ liffId: config.liffId });
+      try {
+        const configRes = await fetch(`${GAS_URL}?action=getConfig`);
+        const config = await configRes.json();
+        await liff.init({ liffId: config.liffId });
 
-      if (!liff.isLoggedIn()) {
-        liff.login();
-      } else {
-        const profile = await liff.getProfile();
-        state.userId = profile.userId;
-        if (config.whitelist.includes(state.userId)) {
-          document.getElementById('btn-group').classList.remove('hidden');
-          await checkStatus(); // [關鍵] 載入時確認當日是否已打卡
+        if (!liff.isLoggedIn()) {
+          liff.login();
         } else {
-          showMsg("權限錯誤", "您的帳號不在授權名單內", "fa-user-lock text-red-500");
+          const profile = await liff.getProfile();
+          state.userId = profile.userId;
+          if (config.whitelist.includes(state.userId)) {
+            document.getElementById('btn-group').classList.remove('hidden');
+            // LIFF 登入後立即檢查試算表狀態
+            await checkStatus(); 
+          } else {
+            showMsg("權限錯誤", "您的帳號不在授權名單內", "fa-user-lock text-red-500");
+          }
         }
-      }
+      } catch(e) { console.error("Init Error", e); }
 
       navigator.geolocation.getCurrentPosition((pos) => {
         state.lat = pos.coords.latitude;
         state.lng = pos.coords.longitude;
+        document.getElementById('location-info').textContent = `COORDS: ${state.lat.toFixed(5)}, ${state.lng.toFixed(5)}`;
+        document.getElementById('gps-dot').classList.replace('bg-red-500', 'bg-green-500');
+        
         const map = L.map('map', { zoomControl: false }).setView([state.lat, state.lng], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const u = L.marker([state.lat, state.lng]).addTo(map);
         u._icon.classList.add('user-marker');
-      }, null, { enableHighAccuracy: true });
+      }, (err) => {
+          document.getElementById('location-info').textContent = "GPS Access Denied";
+      }, { enableHighAccuracy: true });
     }
 
     window.onload = init;
